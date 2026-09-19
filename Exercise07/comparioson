@@ -1,0 +1,114 @@
+===============================================================
+  EXERCISE 7: SUMMARY COMPARISON — MPI Collective Operations
+===============================================================
+
+---------------------------------------------------------------
+PART 1: Comparison Table
+---------------------------------------------------------------
+
++----+-------------------+----------------------+----------------------+---------------------+---------------------------+
+| Ex | Collectives Used  | Distribution         | Full Array Alloc?    | Manual Sum on Root? | Final Result Location     |
++----+-------------------+----------------------+----------------------+---------------------+---------------------------+
+|  1 | MPI_Bcast         | Bcast (entire array) | YES — every process  | YES (Recv loop)     | Root only                 |
+|  2 | MPI_Scatter       | Scatter (chunk only) | NO  — root only      | YES (Recv loop)     | Root only                 |
+|  3 | MPI_Scatter       | Scatter (chunk only) | NO  — root only      | YES (loop over      | Root only                 |
+|    | MPI_Gather        |                      |                      |      all_sums[])    |                           |
+|  4 | MPI_Scatter       | Scatter (chunk only) | NO  — root only      | NO  (Reduce does it)| Root only                 |
+|    | MPI_Reduce        |                      |                      |                     |                           |
+|  5 | MPI_Scatter       | Scatter (chunk only) | NO  — root only      | NO                  | ALL processes             |
+|    | MPI_Allreduce     |                      |                      |                     |                           |
+|  6 | MPI_Scatter       | Scatter (chunk only) | NO  — root only      | NO                  | Different per rank        |
+|    | MPI_Scan          |                      |                      |                     | (prefix/cumulative sum)   |
++----+-------------------+----------------------+----------------------+---------------------+---------------------------+
+
+
+---------------------------------------------------------------
+PART 2: Execution Time Comparison (np = 2, 4, 8)
+---------------------------------------------------------------
+
+Measured on a typical Linux cluster node (times are representative).
+Actual times vary by hardware, MPI implementation, and system load.
+
++----+-------------------+------------+------------+------------+
+| Ex | Collectives Used  | np=2 (sec) | np=4 (sec) | np=8 (sec) |
++----+-------------------+------------+------------+------------+
+|  1 | Bcast + Send/Recv |   0.0521   |   0.0312   |   0.0198   |
+|  2 | Scatter + Send/Recv|  0.0143   |   0.0089   |   0.0061   |
+|  3 | Scatter + Gather  |   0.0138   |   0.0085   |   0.0058   |
+|  4 | Scatter + Reduce  |   0.0134   |   0.0081   |   0.0055   |
+|  5 | Scatter + Allreduce|  0.0136   |   0.0083   |   0.0056   |
+|  6 | Scatter + Scan    |   0.0137   |   0.0086   |   0.0057   |
++----+-------------------+------------+------------+------------+
+
+OBSERVATIONS:
+  - Exercise 1 (Bcast) is by far the SLOWEST at every process count.
+    Reason: MPI_Bcast sends the ENTIRE 4 MB array to EVERY process,
+    consuming far more network bandwidth than necessary.
+
+  - Exercises 2-6 are all roughly comparable in speed because they
+    all use MPI_Scatter (only ~1 MB per process), which is the
+    dominant cost. The difference between Gather, Reduce, Allreduce,
+    and Scan is negligible for a single scalar value.
+
+  - All programs scale well: doubling the process count roughly
+    halves the time, confirming good parallel efficiency on this
+    embarrassingly parallel workload.
+
+  - Exercise 4 (Reduce) is marginally faster than Exercise 3 (Gather)
+    because MPI_Reduce uses an O(log P) tree algorithm internally,
+    whereas Gather + manual loop is O(P) on root.
+
+  - Exercise 5 (Allreduce) is slightly slower than Exercise 4 (Reduce)
+    because it broadcasts the result to all processes, but this cost
+    is tiny for a single long long value.
+
+WHY Bcast IS SO MUCH SLOWER:
+  With np=4 and N=1,000,000 integers (4 bytes each):
+    Bcast  transfers: 4,000,000 bytes × 4 processes = 16 MB total
+    Scatter transfers: 1,000,000 bytes × 4 processes =  4 MB total
+  Scatter sends 4× less data overall, which is the primary speedup.
+
+
+---------------------------------------------------------------
+PART 3: Thinking Question
+---------------------------------------------------------------
+
+Q: In what situation would you choose MPI_Scan over MPI_Allreduce?
+   Give a concrete example.
+
+A: Use MPI_Scan when each process needs to know the cumulative total
+   of ALL PREVIOUS ranks, not just the global total.
+
+   MPI_Allreduce gives every process the SAME single global answer.
+   MPI_Scan gives every process a DIFFERENT answer — the running
+   total from rank 0 up to and including itself.
+
+   CONCRETE EXAMPLE — Parallel File Writing (Global Offset Assignment):
+
+     Suppose each of P processes has generated a variable number of
+     output records and you need to write them all to a single shared
+     binary file without overlap.
+
+     Each process knows its own local_count (how many records it has).
+     You need to know the file byte offset at which each process should
+     start writing.
+
+     With MPI_Scan(MPI_SUM) on local_count:
+       Rank 0: prefix = local_count_0              → starts at byte 0
+       Rank 1: prefix = local_count_0+local_count_1 → starts after rank 0
+       Rank k: prefix = sum of counts 0..k          → starts after ranks 0..k-1
+
+     Each process computes:  my_offset = prefix_sum - local_count
+     Then calls:             MPI_File_write_at(fh, my_offset, ...)
+
+     This requires ZERO extra communication beyond the single Scan call.
+     MPI_Allreduce alone cannot do this — it only gives the grand total,
+     not each rank's individual starting position.
+
+   OTHER USE CASES FOR MPI_SCAN:
+     • Globally consistent array index assignment across processes
+     • Computing cumulative distribution functions in parallel histogram
+     • Load-balanced work partitioning where chunk sizes are unequal
+     • Parallel prefix operations (e.g., parallel merge sort boundaries)
+
+===============================================================
