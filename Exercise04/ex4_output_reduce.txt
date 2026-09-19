@@ -1,0 +1,18 @@
+===== Exercise 4: Scatter + Reduce =====
+
+Root filled array with values 1 to 1000000
+  Rank 0: chunk [0, 250000) => local_sum = 31250125000
+  Rank 1: chunk [250000, 500000) => local_sum = 93750125000
+  Rank 2: chunk [500000, 750000) => local_sum = 156250125000
+  Rank 3: chunk [750000, 1000000) => local_sum = 218750125000
+
+[Reduce] Total sum   = 500000500000
+[Reduce] Expected    = 500000500000
+[Reduce] Correct?    = YES
+[Reduce] Time        = 0.0081 sec
+
+Notes:
+- MPI_Reduce replaces both the Gather call AND the manual summation loop.
+- Uses MPI_SUM with an internal O(log P) tree algorithm — more scalable.
+- total_sum is valid ONLY on root (rank 0); non-root total_sum is undefined.
+- No all_sums[] array needed on root — one fewer allocation.
