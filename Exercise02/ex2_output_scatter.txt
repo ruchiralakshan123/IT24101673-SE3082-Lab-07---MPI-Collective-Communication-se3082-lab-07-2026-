@@ -1,0 +1,18 @@
+===== Exercise 2: Scatter + Send/Recv =====
+
+Root filled array with values 1 to 1000000
+  Rank 0: chunk [0, 250000) => local_sum = 31250125000
+  Rank 1: chunk [250000, 500000) => local_sum = 93750125000
+  Rank 2: chunk [500000, 750000) => local_sum = 156250125000
+  Rank 3: chunk [750000, 1000000) => local_sum = 218750125000
+
+[Scatter] Total sum   = 500000500000
+[Scatter] Expected    = 500000500000
+[Scatter] Correct?    = YES
+[Scatter] Time        = 0.0089 sec
+
+Notes:
+- Only root allocates the full array; all other processes allocate 250,000 elements only.
+- MPI_Scatter sends each process only its required chunk (memory efficient).
+- Collection is still done via Send/Recv point-to-point loop on root.
+- Faster than Bcast because far less data is transferred per process.
