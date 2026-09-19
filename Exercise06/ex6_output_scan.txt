@@ -1,0 +1,30 @@
+===== Exercise 6: Scatter + Scan (Prefix Sums) =====
+
+Root filled array with values 1 to 1000000
+  Rank 0: local_sum = 31250125000, prefix_sum = 31250125000, sum_before_me = 0
+  Rank 0: expected prefix_sum = 31250125000, match = YES
+  Rank 1: local_sum = 93750125000, prefix_sum = 125000250000, sum_before_me = 31250125000
+  Rank 1: expected prefix_sum = 125000250000, match = YES
+  Rank 2: local_sum = 156250125000, prefix_sum = 281250375000, sum_before_me = 125000250000
+  Rank 2: expected prefix_sum = 281250375000, match = YES
+  Rank 3: local_sum = 218750125000, prefix_sum = 500000500000, sum_before_me = 281250375000
+  Rank 3: expected prefix_sum = 500000500000, match = YES
+
+[Scan] Last rank prefix_sum should equal 500000500000
+[Scan] Time = 0.0086 sec
+
+[Scan] Rank 3 prefix_sum (global total) = 500000500000
+[Scan] Expected                          = 500000500000
+[Scan] Correct?                          = YES
+
+Notes:
+- MPI_Scan computes an INCLUSIVE prefix sum: each rank receives the
+  cumulative sum of all local_sums from rank 0 through its own rank.
+- Every rank gets a DIFFERENT result (unlike Allreduce).
+- sum_before_me = prefix_sum - local_sum acts as a global offset,
+  enabling globally-correct running totals within each chunk.
+- Verification formula: K*(K+1)/2 where K = (rank+1)*chunk_size.
+  Rank 0: K=250000  => 31,250,125,000  ✓
+  Rank 1: K=500000  => 125,000,250,000 ✓
+  Rank 2: K=750000  => 281,250,375,000 ✓
+  Rank 3: K=1000000 => 500,000,500,000 ✓
