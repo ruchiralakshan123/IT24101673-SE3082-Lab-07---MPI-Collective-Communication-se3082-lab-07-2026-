@@ -1,0 +1,19 @@
+===== Exercise 3: Scatter + Gather =====
+
+Root filled array with values 1 to 1000000
+  Rank 0: chunk [0, 250000) => local_sum = 31250125000
+  Rank 1: chunk [250000, 500000) => local_sum = 93750125000
+  Rank 2: chunk [500000, 750000) => local_sum = 156250125000
+  Rank 3: chunk [750000, 1000000) => local_sum = 218750125000
+
+[Gather] Total sum   = 500000500000
+[Gather] Expected    = 500000500000
+[Gather] Correct?    = YES
+[Gather] Time        = 0.0085 sec
+
+Notes:
+- MPI_Gather replaces the manual Send/Recv loop; one collective call collects
+  all partial sums into all_sums[] on root in rank order.
+- Root still manually loops over all_sums[] to compute the total (Gather
+  does NOT perform any arithmetic — it only moves data).
+- Result is available on root only.
